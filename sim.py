@@ -1,3 +1,6 @@
+from email.mime import application
+import json
+import ast
 
 class Device:
 	def __init__(self, RAM, location, time) -> None:
@@ -35,3 +38,28 @@ class sim:
 	def runInput(self):
 		for event in self.input:
 			self.device.processEvent(event)
+
+f = open('top10users.txt', 'r')
+users = {}
+for line in f:
+	items = line.split('~')
+	users[items[0]] = []
+	events = ast.literal_eval(items[1])
+	for e in events:
+		e = str(e).replace('\'', '\"')
+		users[items[0]].append(json.loads(e))
+
+
+for u in users:
+	print(u)
+	print(len(users[u]))
+
+app_list = set()
+for u in users:
+	for e in users[u]:
+		for app in e['apps']:
+			if app['processName'] not in app_list:
+				app_list.add(app['processName'])
+
+print(app_list)
+print(len(app_list))
