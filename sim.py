@@ -6,9 +6,19 @@ class Device:
 		self.location = location
 		self.time = time
 		self.app_to_ram = {}
+		self.name_to_app = {}
+		self.warm_apps = []
+		self.cold_apps = []
+		self.hot_apps = []
 		
 	def processEvent(event):
 		pass
+
+class Application:
+	def __init__(self, name, mem_use):
+		self.name = name
+		self.mem_use = mem_use
+			
 		
 class Event:
 	def __init__(self, type, location, time, app):
@@ -18,7 +28,7 @@ class Event:
 		self.app = app
 
 class sim:
-	def __init__(self, input, RAM, location, time) -> None:
+	def __init__(self, input, RAM, location, time):
 		self.input = input
 		self.device = Device(RAM, location, time)
 
