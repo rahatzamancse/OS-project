@@ -1,7 +1,7 @@
-from email.mime import application
 import json
 import ast
 
+# The device class manages all the devices resources such as battery, RAM, etc
 class Device:
 	def __init__(self, RAM, location, time) -> None:
 		battery = 100.0
@@ -22,7 +22,7 @@ class Application:
 		self.name = name
 		self.mem_use = mem_use
 			
-		
+# This is the Event class. It classifies events from the input as a object, with the location, time, and app opened during this time.
 class Event:
 	def __init__(self, type, location, time, app):
 		self.type = type
@@ -30,7 +30,9 @@ class Event:
 		self.time = time
 		self.app = app
 
-class sim:
+# First, create the sim with the input, desired RAM and the starting location and time.
+# The sim will create the device with the desired attributes and run the input
+class Sim:
 	def __init__(self, input, RAM, location, time):
 		self.input = input
 		self.device = Device(RAM, location, time)
@@ -39,6 +41,7 @@ class sim:
 		for event in self.input:
 			self.device.processEvent(event)
 
+print('Loading Dataset ...')
 f = open('top10users.txt', 'r')
 users = {}
 for line in f:
@@ -54,6 +57,7 @@ for u in users:
 	print(u)
 	print(len(users[u]))
 
+print('Fetching Applications ...')
 app_list = set()
 for u in users:
 	for e in users[u]:
@@ -63,3 +67,10 @@ for u in users:
 
 print(app_list)
 print(len(app_list))
+
+applications = set()
+
+for app in app_list:
+    application = Application(app, 200)
+    applications.add(application)
+
