@@ -44,14 +44,16 @@ class Sim:
 print('Loading Dataset ...')
 f = open('top10users.txt', 'r')
 users = {}
+lineNum = 0
 for line in f:
-	items = line.split('~')
-	users[items[0]] = []
-	events = ast.literal_eval(items[1])
-	for e in events:
-		e = str(e).replace('\'', '\"')
-		users[items[0]].append(json.loads(e))
-
+    lineNum += 1
+    print(lineNum)
+    items = line.split('~')
+    users[items[0]] = []
+    events = ast.literal_eval(items[1])
+    for e in events:
+        e = str(e).replace('\'', '\"')
+        users[items[0]].append(json.loads(e))
 
 for u in users:
 	print(u)
@@ -64,6 +66,14 @@ for u in users:
 		for app in e['apps']:
 			if app['processName'] not in app_list:
 				app_list.add(app['processName'])
+
+print('Sorting Events by TimeStamp ...')
+for u in users:
+    u = sorted(u, key=lambda x: x['timestamp'])
+    for event in u:
+        print(event['timestamp'])
+    break
+
 
 print(app_list)
 print(len(app_list))
