@@ -16,7 +16,7 @@ for file in os.listdir('datasets'):
 		break
 	for line in open('datasets/' + file):
 		event = json.loads(line)
-		event['apps'] = [app for app in event['apps'] if app['priority'] == 'Foreground app']
+		event['apps'] = [app['processName'] for app in event['apps'] if app['priority'] == 'Foreground app']
 
 		for field in unimportant_fields:
 			del event[field]

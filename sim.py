@@ -1,86 +1,100 @@
-import json
-import ast
+from email.mime import application
+from sim_helpers import *
+from datetime import datetime
 
 # The device class manages all the devices resources such as battery, RAM, etc
 class Device:
-	def __init__(self, RAM, location, time) -> None:
-		battery = 100.0
-		self.RAM = RAM
-		self.location = location
-		self.time = time
-		self.app_to_ram = {}
-		self.name_to_app = {}
-		self.warm_apps = []
-		self.cold_apps = []
-		self.hot_apps = []
-		
-	def processEvent(event):
-		pass
+    def __init__(self, RAM, location, time) -> None:
+        battery = 100.0
+        self.RAM = RAM
+        self.total_RAM = RAM
+        self.location = location
+        self.time = time
+        self.applications = []
+        self.down_time = 0.0
+        self.current_date = None
+        self.total_dates = 0
+        # self.app_to_ram = {}
+        # self.name_to_app = {}
+        # self.warm_apps = []
+        # self.cold_apps = []
+        # self.hot_apps = []
 
-class Application:
-	def __init__(self, name, mem_use):
-		self.name = name
-		self.mem_use = mem_use
-			
+    def processEvent(self, event):
+        self.time = event['timestamp']
+        dt = datetime.utcfromtimestamp(self.time)
+
+        last_date = self.current_date
+        self.current_date = dt.day
+
+        if last_date != self.current_date:
+            self.applications = []
+            self.RAM = self.total_RAM
+            self.total_dates += 1
+
+        # print('current RAM: ' + str(self.RAM))
+        # Go through foreground apps and add them to RAM
+        for app in event['apps']:
+            if app not in self.applications:
+                # If there is NOT enough RAM for this application
+                if app not in app_to_category:
+                    app_to_category[app] = 'OTHER'
+                while self.RAM < categories_to_RAM[app_to_category[app]]:
+                    evicted = self.applications.pop(0)
+                    self.RAM += categories_to_RAM[app_to_category[evicted]]
+
+                self.RAM -= categories_to_RAM[app_to_category[app]]
+                self.down_time += 5
+            else:
+                self.applications.remove(app)
+                self.down_time += 1
+
+            # Add app to the top of the stack
+            self.applications.append(app)
+
+
 # This is the Event class. It classifies events from the input as a object, with the location, time, and app opened during this time.
 class Event:
-	def __init__(self, type, location, time, app):
-		self.type = type
-		self.location = location
-		self.time = time
-		self.app = app
+    def __init__(self, type, location, time, app):
+        self.type = type
+        self.location = location
+        self.time = time
+        self.app = app
 
 # First, create the sim with the input, desired RAM and the starting location and time.
 # The sim will create the device with the desired attributes and run the input
 class Sim:
-	def __init__(self, input, RAM, location, time):
-		self.input = input
-		self.device = Device(RAM, location, time)
+    def __init__(self, input, RAM):
+        self.input = sorted(input, key=lambda x: int(x['timestamp']))
+        location = None
+        time = self.input[0]['timestamp']
+        self.device = Device(RAM, location, time)
 
-	def runInput(self):
-		for event in self.input:
-			self.device.processEvent(event)
+    def runInput(self):
+        for event in self.input:
+            self.device.processEvent(event)
+
 
 print('Loading Dataset ...')
-f = open('top10users.txt', 'r')
-users = {}
-lineNum = 0
-for line in f:
-    lineNum += 1
-    print(lineNum)
-    items = line.split('~')
-    users[items[0]] = []
-    events = ast.literal_eval(items[1])
-    for e in events:
-        e = str(e).replace('\'', '\"')
-        users[items[0]].append(json.loads(e))
+users = load_dataset()
 
+# Just get user1 for testing the simulation
+user1 = None
 for u in users:
-	print(u)
-	print(len(users[u]))
-
-print('Fetching Applications ...')
-app_list = set()
-for u in users:
-	for e in users[u]:
-		for app in e['apps']:
-			if app['processName'] not in app_list:
-				app_list.add(app['processName'])
-
-print('Sorting Events by TimeStamp ...')
-for u in users:
-    u = sorted(u, key=lambda x: x['timestamp'])
-    for event in u:
-        print(event['timestamp'])
+    user1 = users[u]
     break
 
+print('Fetching Applications ...')
+app_list = get_app_list(users)
 
-print(app_list)
-print(len(app_list))
+print('Categorizing Applications ... ')
 
-applications = set()
+app_to_category, categories_to_RAM = get_categories()
 
-for app in app_list:
-    application = Application(app, 200)
-    applications.add(application)
 
+init_time = user1[0]['timestamp']
+simu = Sim(user1, 4096)
+simu.runInput()
+print('total downtime: ' + str(simu.device.down_time))
+average_downtime = simu.device.down_time / float(simu.device.total_dates)
+print('average downtime: ' + str(average_downtime))
