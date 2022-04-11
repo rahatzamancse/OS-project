@@ -15,7 +15,6 @@ def load_dataset():
         for e in events:
             e = str(e).replace('\'', '\"')
             users[items[0]].append(json.loads(e))
-        break
 
     return users
 
