@@ -7,6 +7,8 @@ class Device:
     def __init__(self, RAM, location, time) -> None:
         battery = 100.0
         self.RAM = RAM
+        self.RAM_cap = 500
+        self.RAM_reset = 150
         self.total_RAM = RAM
         self.location = location
         self.time = time
@@ -14,6 +16,7 @@ class Device:
         self.down_time = 0.0
         self.current_date = None
         self.total_dates = 0
+        self.avg_start_RAM = 0
         # self.app_to_ram = {}
         # self.name_to_app = {}
         # self.warm_apps = []
@@ -28,8 +31,13 @@ class Device:
         self.current_date = dt.day
 
         if last_date != self.current_date:
-            self.applications = []
-            self.RAM = self.total_RAM
+            for app in self.applications:
+                if categories_to_RAM[app_to_category[app]] > self.RAM_reset:
+                    self.applications.pop(self.applications.index(app))
+                    self.RAM += categories_to_RAM[app_to_category[app]]
+            self.avg_start_RAM += self.RAM
+            # self.applications = []
+            # self.RAM = self.total_RAM
             self.total_dates += 1
 
         # print('current RAM: ' + str(self.RAM))
@@ -40,14 +48,26 @@ class Device:
                 if app not in app_to_category:
                     app_to_category[app] = 'OTHER'
                 while self.RAM < categories_to_RAM[app_to_category[app]]:
-                    evicted = self.applications.pop(0)
+
+                    top_RAM_use = 0
+                    top_idx = 0
+                    i = 0
+                    for ram_app in self.applications:
+                        if categories_to_RAM[app_to_category[ram_app]] > top_RAM_use:
+                            top_RAM_use = categories_to_RAM[app_to_category[ram_app]]
+                            top_idx = i
+                        i += 1
+                    if top_RAM_use >= self.RAM_cap:
+                        evicted = self.applications.pop(top_idx)
+                    else:
+                        evicted = self.applications.pop(0)
                     self.RAM += categories_to_RAM[app_to_category[evicted]]
 
                 self.RAM -= categories_to_RAM[app_to_category[app]]
                 self.down_time += 5
             else:
                 self.applications.remove(app)
-                self.down_time += 1
+                self.down_time += 0
 
             # Add app to the top of the stack
             self.applications.append(app)
@@ -79,10 +99,10 @@ print('Loading Dataset ...')
 users = load_dataset()
 
 # Just get user1 for testing the simulation
-user1 = None
-for u in users:
-    user1 = users[u]
-    break
+# user1 = None
+# for u in users:
+#     user1 = users[u]
+#     break
 
 print('Fetching Applications ...')
 app_list = get_app_list(users)
@@ -91,10 +111,13 @@ print('Categorizing Applications ... ')
 
 app_to_category, categories_to_RAM = get_categories()
 
-
-init_time = user1[0]['timestamp']
-simu = Sim(user1, 4096)
-simu.runInput()
-print('total downtime: ' + str(simu.device.down_time))
-average_downtime = simu.device.down_time / float(simu.device.total_dates)
-print('average downtime: ' + str(average_downtime))
+for u in users:
+    init_time = users[u][0]['timestamp']
+    simu = Sim(users[u], 4096)
+    simu.runInput()
+    # print('total downtime: ' + str(simu.device.down_time))
+    average_downtime = simu.device.down_time / float(simu.device.total_dates)
+    avg_RAM = simu.device.avg_start_RAM / float(simu.device.total_dates)
+    # print('average downtime: ' + str(average_downtime))
+    # print()
+    print(average_downtime)
