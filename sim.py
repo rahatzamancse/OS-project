@@ -1,6 +1,7 @@
 from email.mime import application
 from sim_helpers import *
 from datetime import datetime
+from model import *
 
 # The device class manages all the devices resources such as battery, RAM, etc
 class Device:
@@ -64,7 +65,7 @@ class Device:
                     self.RAM += categories_to_RAM[app_to_category[evicted]]
 
                 self.RAM -= categories_to_RAM[app_to_category[app]]
-                self.down_time += 5
+                self.down_time += max(categories_to_RAM[app_to_category[app]] / float(90), 5.0)
             else:
                 self.applications.remove(app)
                 self.down_time += 0
@@ -85,6 +86,7 @@ class Event:
 # The sim will create the device with the desired attributes and run the input
 class Sim:
     def __init__(self, input, RAM):
+        self.model = loadModel(input[0]['uuid'])
         self.input = sorted(input, key=lambda x: int(x['timestamp']))
         location = None
         time = self.input[0]['timestamp']
@@ -96,7 +98,13 @@ class Sim:
 
 
 print('Loading Dataset ...')
-users = load_dataset()
+user_summary = get_user_summary(output_dir)
+sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
+users = []
+for i in range(1):
+    users.append(get_user_data(list(sorted_users_by_event.keys())[i], output_dir))
+
+# users = load_dataset()
 
 # Just get user1 for testing the simulation
 # user1 = None
@@ -112,12 +120,15 @@ print('Categorizing Applications ... ')
 app_to_category, categories_to_RAM = get_categories()
 
 for u in users:
-    init_time = users[u][0]['timestamp']
-    simu = Sim(users[u], 4096)
+    print(u[0]['uuid']) 
+    init_time = u[0]['timestamp']
+    simu = Sim(u, 4096)
     simu.runInput()
-    # print('total downtime: ' + str(simu.device.down_time))
+    print('total downtime: ' + str(simu.device.down_time))
     average_downtime = simu.device.down_time / float(simu.device.total_dates)
     avg_RAM = simu.device.avg_start_RAM / float(simu.device.total_dates)
     # print('average downtime: ' + str(average_downtime))
     # print()
     print(average_downtime)
+
+

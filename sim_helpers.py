@@ -14,14 +14,16 @@ def load_dataset():
         events = ast.literal_eval(items[1])
         for e in events:
             e = str(e).replace('\'', '\"')
-            users[items[0]].append(json.loads(e))
+            new_event = json.loads(e)
+            new_event['uuid'] = items[0]
+            users[items[0]].append(new_event)
 
     return users
 
 def get_app_list(users):
     app_list = set()
     for u in users:
-        for e in users[u]:
+        for e in u:
             for app in e['apps']:
                 if app not in app_list:
                     app_list.add(app)

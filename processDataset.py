@@ -4,7 +4,7 @@ import json
 import pandas as pd
 from tqdm import tqdm
 from datetime import datetime
-
+import heapq
 import plotly.express as px
 
 import numpy as np
@@ -16,7 +16,7 @@ from processDataset import *
 def previous():
     data = []
     users = {}
-    unimportant_fields = ['timeZone', 'mobileCountryCode', 'batteryStatus']
+    unimportant_fields = ['timeZone', 'mobileCountryCode']
 
     i = 0
     for file in os.listdir('datasets'):
@@ -186,7 +186,3 @@ def get_X_y(data, top_n_apps=50):
     X_tmp = X_tmp.drop(X_tmp.index[-1]).reset_index().drop(['index'], axis=1)
     
     return X_tmp, y
-
-
-
-
