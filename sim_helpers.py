@@ -1,6 +1,8 @@
 import json
 import ast
 from sre_constants import CATEGORY_NOT_WORD
+from datetime import datetime
+from tkinter import W
 
 def load_dataset():
     f = open('top10users.txt', 'r')
@@ -29,6 +31,31 @@ def get_app_list(users):
                     app_list.add(app)
 
     return app_list
+
+def get_secs_from_time(t):
+    t = str(datetime.utcfromtimestamp(t).time())[:5]
+    secs = int(t[:2]) * 60 + int(t[3:])
+    return secs
+
+def prep_input(input, template):
+    x = [0 for i in range(len(template))]
+    for k in input:
+        if k not in template:
+            continue
+        if k == 'timestamp' or k == 'batteryLevel':
+            x[template.index(k)] = input[k]
+        elif k == 'batteryStatus':
+            if input[k] == 'charging':
+                x[template.index(k)] = 0
+            elif input[k] == 'discharging':
+                x[template.index(k)] = 1
+            elif input[k] == 'full':
+                x[template.index(k)] = 2
+        elif k == 'apps':
+            for app in input[k]:
+                x[template.index(app)] = 1
+    return x
+    
 
 def get_categories():
     f = open('categories.csv')

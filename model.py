@@ -21,11 +21,27 @@ from sim_helpers import *
 
 output_dir = 'output'
 
-def trainModel(user_num):
+def storeData(user_num):
 	user_summary = get_user_summary(output_dir)
 	sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
 	data = get_user_data(list(sorted_users_by_event.keys())[user_num], output_dir)
 	
+	path = 'user1.pickle'
+	file = open(path, 'wb')
+	pickle.dump(data, file)
+
+def getData():
+	path = 'user1.pickle'
+	file = open(path, 'rb')
+	return pickle.load(file)
+
+def trainModel(user_num):
+	# user_summary = get_user_summary(output_dir)
+	# sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
+	# data = get_user_data(list(sorted_users_by_event.keys())[user_num], output_dir
+	
+	data = getData()	
+
 	X, y = get_X_y(data, 50)
 
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.5, random_state=42)
@@ -50,4 +66,20 @@ def loadModel(uuid):
 	regr = pickle.load(file)
 	return regr
 
-trainModel(0)
+def modelPredict(model, x):
+	return model.predict(x).round()
+	
+# storeData(1)
+# trainModel(1)
+	
+# trainModel(0)
+
+# path = 'models/30f7d786367be12c4146cd175819bdec2bb1a57b01d9953f3405fa654bb06e9f.pickle'
+# file = open(path, 'rb')
+# model = pickle.load(file)
+
+# X, y = get_X_y(getData())
+
+# y_hat = modelPredict(model, (X[:][:1]))
+
+# print(y_hat)

@@ -166,8 +166,8 @@ def get_X_y(data, top_n_apps=50):
     battery_status_encoder = preprocessing.LabelEncoder()
     X_tmp['batteryStatus'] = battery_status_encoder.fit_transform(X_tmp['batteryStatus'])
 
-    battery_level_scaler = preprocessing.MinMaxScaler()
-    X_tmp['batteryLevel'] = battery_level_scaler.fit_transform(X_tmp['batteryLevel'].values.reshape(-1, 1))
+    # battery_level_scaler = preprocessing.MinMaxScaler()
+    # X_tmp['batteryLevel'] = battery_level_scaler.fit_transform(X_tmp['batteryLevel'].values.reshape(-1, 1))
     
     X_tmp = X_tmp.sort_values(by=['timestamp']).reset_index().drop(['index'], axis=1)
     
@@ -177,8 +177,8 @@ def get_X_y(data, top_n_apps=50):
         return secs
     X_tmp['timestamp'] = X_tmp['timestamp'].apply(get_secs_from_time)
     
-    timestamp_scaler = preprocessing.MinMaxScaler()
-    X_tmp['timestamp'] = timestamp_scaler.fit_transform(X_tmp['timestamp'].values.reshape(-1, 1))
+    # timestamp_scaler = preprocessing.MinMaxScaler()
+    # X_tmp['timestamp'] = timestamp_scaler.fit_transform(X_tmp['timestamp'].values.reshape(-1, 1))
     
     y = X_tmp.iloc[:, 3:].copy()
     y = y.drop(y.index[0]).reset_index().drop(['index'], axis=1)

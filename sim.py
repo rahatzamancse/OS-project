@@ -1,7 +1,11 @@
 from email.mime import application
+
+from zmq import device
 from sim_helpers import *
+from processDataset import *
 from datetime import datetime
 from model import *
+import sys
 
 # The device class manages all the devices resources such as battery, RAM, etc
 class Device:
@@ -78,24 +82,63 @@ class Sim:
         location = None
         time = self.input[0]['timestamp']
         self.device = Device(RAM, location, time)
+        self.prefetched = 0
+        self.failed_prefetch = 0
+        self.pre_evict = 0
 
     def runInput(self):
-        for event in self.input:
+        for event in tqdm(self.input):
+            eventTime = get_secs_from_time(event['timestamp'])
+            deviceTime = get_secs_from_time(self.device.time)
+            
+            predicting = True
+            while deviceTime + 20 < eventTime and predicting:
+                x = prep_input(event, template)
+                y_hat = modelPredict(self.model, [x])[0]
+                for i in range(0, len(y_hat)):
+                    app = template[i + 3]
+                    if app not in app_to_category:
+                        app_to_category[app] = 'OTHER'
+                    if app in self.device.applications and y_hat[i] == 0:
+                        self.device.applications.remove(app)
+                        self.device.RAM += categories_to_RAM[app_to_category[app]]
+                        self.pre_evict += 1
+                for i in range(0, len(y_hat)):
+                    app = template[i + 3]
+                    if app not in self.device.applications and y_hat[i] == 1:
+                        if self.device.RAM >= categories_to_RAM[app_to_category[app]]:
+                            self.device.applications.insert(0, app)
+                            self.device.RAM -= categories_to_RAM[app_to_category[app]]
+
+                            self.prefetched += 1                            
+                        else:
+                            self.failed_prefetch += 1                            
+                deviceTime += 20
+
             self.device.processEvent(event)
 
 
 print('Loading Dataset ...')
-user_summary = get_user_summary(output_dir)
-sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
+# user_summary = get_user_summary(output_dir)
+# sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
 
 # Only get one user for now
-users = []
-for i in range(1):
-    users.append(get_user_data(list(sorted_users_by_event.keys())[i], output_dir))
+# users = []
+# for i in range(1):
+#     users.append(get_user_data(list(sorted_users_by_event.keys())[i], output_dir))
+
+users = [getData()]
 
 print('Fetching Applications ...')
 app_list = get_app_list(users)
 
+app_freq = get_app_freq(users[0])
+top_freq_apps = [k for k,v in sorted(app_freq.items(), key=lambda item: item[1], reverse=True)][:50]
+
+template = ['batteryLevel', 'batteryStatus', 'timestamp']
+for app in top_freq_apps:
+    template.append(app)
+    
 print('Categorizing Applications ... ')
 
 app_to_category, categories_to_RAM = get_categories()
@@ -111,5 +154,6 @@ for u in users:
     # print('average downtime: ' + str(average_downtime))
     # print()
     print(average_downtime)
-
-
+    print('total prefetched: ' + str(simu.prefetched))
+    print('total pre-evicted: ' + str(simu.pre_evict))
+    print('total failed prefetches: ' + str(simu.failed_prefetch))
