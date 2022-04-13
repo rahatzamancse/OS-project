@@ -18,11 +18,6 @@ class Device:
         self.current_date = None
         self.total_dates = 0
         self.avg_start_RAM = 0
-        # self.app_to_ram = {}
-        # self.name_to_app = {}
-        # self.warm_apps = []
-        # self.cold_apps = []
-        # self.hot_apps = []
 
     def processEvent(self, event):
         self.time = event['timestamp']
@@ -74,14 +69,6 @@ class Device:
             self.applications.append(app)
 
 
-# This is the Event class. It classifies events from the input as a object, with the location, time, and app opened during this time.
-class Event:
-    def __init__(self, type, location, time, app):
-        self.type = type
-        self.location = location
-        self.time = time
-        self.app = app
-
 # First, create the sim with the input, desired RAM and the starting location and time.
 # The sim will create the device with the desired attributes and run the input
 class Sim:
@@ -100,17 +87,11 @@ class Sim:
 print('Loading Dataset ...')
 user_summary = get_user_summary(output_dir)
 sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
+
+# Only get one user for now
 users = []
 for i in range(1):
     users.append(get_user_data(list(sorted_users_by_event.keys())[i], output_dir))
-
-# users = load_dataset()
-
-# Just get user1 for testing the simulation
-# user1 = None
-# for u in users:
-#     user1 = users[u]
-#     break
 
 print('Fetching Applications ...')
 app_list = get_app_list(users)
