@@ -7,6 +7,7 @@ from datetime import datetime
 from model import *
 import sys
 
+
 # The device class manages all the devices resources such as battery, RAM, etc
 class Device:
     def __init__(self, RAM, location, time) -> None:
@@ -22,6 +23,23 @@ class Device:
         self.current_date = None
         self.total_dates = 0
         self.avg_start_RAM = 0
+        self.page_faults = 0
+    
+    def evictApps(self, app):
+        while self.RAM < categories_to_RAM[app_to_category[app]]:
+            top_RAM_use = 0
+            top_idx = 0
+            i = 0
+            for ram_app in self.applications:
+                if categories_to_RAM[app_to_category[ram_app]] > top_RAM_use:
+                    top_RAM_use = categories_to_RAM[app_to_category[ram_app]]
+                    top_idx = i
+                i += 1
+            if top_RAM_use >= self.RAM_cap:
+                evicted = self.applications.pop(top_idx)
+            else:
+                evicted = self.applications.pop(0)
+            self.RAM += categories_to_RAM[app_to_category[evicted]]
 
     def processEvent(self, event):
         self.time = event['timestamp']
@@ -43,26 +61,12 @@ class Device:
         # print('current RAM: ' + str(self.RAM))
         # Go through foreground apps and add them to RAM
         for app in event['apps']:
+            self.page_faults += 1
             if app not in self.applications:
                 # If there is NOT enough RAM for this application
                 if app not in app_to_category:
                     app_to_category[app] = 'OTHER'
-                while self.RAM < categories_to_RAM[app_to_category[app]]:
-
-                    top_RAM_use = 0
-                    top_idx = 0
-                    i = 0
-                    for ram_app in self.applications:
-                        if categories_to_RAM[app_to_category[ram_app]] > top_RAM_use:
-                            top_RAM_use = categories_to_RAM[app_to_category[ram_app]]
-                            top_idx = i
-                        i += 1
-                    if top_RAM_use >= self.RAM_cap:
-                        evicted = self.applications.pop(top_idx)
-                    else:
-                        evicted = self.applications.pop(0)
-                    self.RAM += categories_to_RAM[app_to_category[evicted]]
-
+                self.evictApps(app)
                 self.RAM -= categories_to_RAM[app_to_category[app]]
                 self.down_time += max(categories_to_RAM[app_to_category[app]] / float(90), 5.0)
             else:
@@ -87,13 +91,15 @@ class Sim:
         self.pre_evict = 0
 
     def runInput(self):
+        prevEvent = None
         for event in tqdm(self.input):
             eventTime = get_secs_from_time(event['timestamp'])
             deviceTime = get_secs_from_time(self.device.time)
             
-            predicting = True
-            while deviceTime + 20 < eventTime and predicting:
-                x = prep_input(event, template)
+            predicting = False
+            if prevEvent != None and predicting:
+                # TODO: NEED to change this to the current state, not next state
+                x = prep_input(prevEvent, template)
                 y_hat = modelPredict(self.model, [x])[0]
                 for i in range(0, len(y_hat)):
                     app = template[i + 3]
@@ -106,6 +112,7 @@ class Sim:
                 for i in range(0, len(y_hat)):
                     app = template[i + 3]
                     if app not in self.device.applications and y_hat[i] == 1:
+                        self.device.evictApps(app)
                         if self.device.RAM >= categories_to_RAM[app_to_category[app]]:
                             self.device.applications.insert(0, app)
                             self.device.RAM -= categories_to_RAM[app_to_category[app]]
@@ -113,8 +120,8 @@ class Sim:
                             self.prefetched += 1                            
                         else:
                             self.failed_prefetch += 1                            
-                deviceTime += 20
 
+            prevEvent = event
             self.device.processEvent(event)
 
 
@@ -133,7 +140,7 @@ print('Fetching Applications ...')
 app_list = get_app_list(users)
 
 app_freq = get_app_freq(users[0])
-top_freq_apps = [k for k,v in sorted(app_freq.items(), key=lambda item: item[1], reverse=True)][:50]
+top_freq_apps = [k for k,v in sorted(app_freq.items(), key=lambda item: item[1], reverse=True)][:100]
 
 template = ['batteryLevel', 'batteryStatus', 'timestamp']
 for app in top_freq_apps:
@@ -157,3 +164,4 @@ for u in users:
     print('total prefetched: ' + str(simu.prefetched))
     print('total pre-evicted: ' + str(simu.pre_evict))
     print('total failed prefetches: ' + str(simu.failed_prefetch))
+    print('total page faults: ' + str(simu.device.page_faults))

@@ -42,7 +42,7 @@ def trainModel(user_num):
 	
 	data = getData()	
 
-	X, y = get_X_y(data, 50)
+	X, y = get_X_y(data, 100)
 
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.5, random_state=42)
 	print("uuid: " + str(data[0]['uuid']))
