@@ -53,24 +53,6 @@ def previous():
     out.write(out_file)
     out.close()
 
-    # min_len = -1
-    # max_len = 0
-    # mean_len = 0
-    # for u in users:
-    # 	amt = len(users[u])
-    # 	if min_len == -1 or amt < min_len:
-    # 		min_len = amt
-    # 	if amt > max_len:
-    # 		max_len = amt
-
-    # 	mean_len += amt
-
-    # mean_len = float(mean_len) / float(len(users))
-
-    # print(min_len)
-    # print(max_len)
-    # print(mean_len)
-
 def preprocess_dataset(DATA_DIR, output_dir):
     data = []
     unimportant_fields = ['timeZone', 'mobileCountryCode']
@@ -166,8 +148,8 @@ def get_X_y(data, top_n_apps=50):
     battery_status_encoder = preprocessing.LabelEncoder()
     X_tmp['batteryStatus'] = battery_status_encoder.fit_transform(X_tmp['batteryStatus'])
 
-    # battery_level_scaler = preprocessing.MinMaxScaler()
-    # X_tmp['batteryLevel'] = battery_level_scaler.fit_transform(X_tmp['batteryLevel'].values.reshape(-1, 1))
+    battery_level_scaler = preprocessing.MinMaxScaler()
+    X_tmp['batteryLevel'] = battery_level_scaler.fit_transform(X_tmp['batteryLevel'].values.reshape(-1, 1))
     
     X_tmp = X_tmp.sort_values(by=['timestamp']).reset_index().drop(['index'], axis=1)
     
@@ -177,8 +159,8 @@ def get_X_y(data, top_n_apps=50):
         return secs
     X_tmp['timestamp'] = X_tmp['timestamp'].apply(get_secs_from_time)
     
-    # timestamp_scaler = preprocessing.MinMaxScaler()
-    # X_tmp['timestamp'] = timestamp_scaler.fit_transform(X_tmp['timestamp'].values.reshape(-1, 1))
+    timestamp_scaler = preprocessing.MinMaxScaler()
+    X_tmp['timestamp'] = timestamp_scaler.fit_transform(X_tmp['timestamp'].values.reshape(-1, 1))
     
     y = X_tmp.iloc[:, 3:].copy()
     y = y.drop(y.index[0]).reset_index().drop(['index'], axis=1)

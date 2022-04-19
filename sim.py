@@ -61,8 +61,8 @@ class Device:
         # print('current RAM: ' + str(self.RAM))
         # Go through foreground apps and add them to RAM
         for app in event['apps']:
-            self.page_faults += 1
             if app not in self.applications:
+                self.page_faults += 1
                 # If there is NOT enough RAM for this application
                 if app not in app_to_category:
                     app_to_category[app] = 'OTHER'
@@ -71,7 +71,6 @@ class Device:
                 self.down_time += max(categories_to_RAM[app_to_category[app]] / float(90), 5.0)
             else:
                 self.applications.remove(app)
-                self.down_time += 0
 
             # Add app to the top of the stack
             self.applications.append(app)
@@ -89,10 +88,19 @@ class Sim:
         self.prefetched = 0
         self.failed_prefetch = 0
         self.pre_evict = 0
+        self.wrong_prefetch = 0
+        self.wrong_evict = 0
+        self.num_right = 0
+        self.hits = 0
+        self.miss = 0
 
     def runInput(self):
         prevEvent = None
+        iter = 0
         for event in tqdm(self.input):
+            iter += 1
+            if iter > 3000:
+                break
             eventTime = get_secs_from_time(event['timestamp'])
             deviceTime = get_secs_from_time(self.device.time)
             
@@ -100,7 +108,9 @@ class Sim:
             if prevEvent != None and predicting:
                 # TODO: NEED to change this to the current state, not next state
                 x = prep_input(prevEvent, template)
+                prev_x = prep_input(event, template)
                 y_hat = modelPredict(self.model, [x])[0]
+
                 for i in range(0, len(y_hat)):
                     app = template[i + 3]
                     if app not in app_to_category:
@@ -114,12 +124,13 @@ class Sim:
                     if app not in self.device.applications and y_hat[i] == 1:
                         self.device.evictApps(app)
                         if self.device.RAM >= categories_to_RAM[app_to_category[app]]:
-                            self.device.applications.insert(0, app)
+                            # TODO: Try append instead of insert
+                            self.device.applications.append(app)
                             self.device.RAM -= categories_to_RAM[app_to_category[app]]
 
                             self.prefetched += 1                            
                         else:
-                            self.failed_prefetch += 1                            
+                            self.failed_prefetch += 1
 
             prevEvent = event
             self.device.processEvent(event)
@@ -165,3 +176,7 @@ for u in users:
     print('total pre-evicted: ' + str(simu.pre_evict))
     print('total failed prefetches: ' + str(simu.failed_prefetch))
     print('total page faults: ' + str(simu.device.page_faults))
+
+    print(simu.wrong_prefetch)
+    print(simu.wrong_evict)
+    print(simu.num_right)

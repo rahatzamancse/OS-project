@@ -22,64 +22,60 @@ from sim_helpers import *
 output_dir = 'output'
 
 def storeData(user_num):
-	user_summary = get_user_summary(output_dir)
-	sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
-	data = get_user_data(list(sorted_users_by_event.keys())[user_num], output_dir)
-	
-	path = 'user1.pickle'
-	file = open(path, 'wb')
-	pickle.dump(data, file)
+    user_summary = get_user_summary(output_dir)
+    sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
+    data = get_user_data(list(sorted_users_by_event.keys())[user_num], output_dir)
+    
+    path = 'user1.pickle'
+    file = open(path, 'wb')
+    pickle.dump(data, file)
 
 def getData():
-	path = 'user1.pickle'
-	file = open(path, 'rb')
-	return pickle.load(file)
+    path = 'user1.pickle'
+    file = open(path, 'rb')
+    return pickle.load(file)
 
-def trainModel(user_num):
-	# user_summary = get_user_summary(output_dir)
-	# sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
-	# data = get_user_data(list(sorted_users_by_event.keys())[user_num], output_dir
-	
-	data = getData()	
+def trainModel():
+    # user_summary = get_user_summary(output_dir)
+    # sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
+    # data = get_user_data(list(sorted_users_by_event.keys())[user_num], output_dir
+    
+    data = getData()
 
-	X, y = get_X_y(data, 100)
+    X, y = get_X_y(data, 100)
 
-	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.5, random_state=42)
-	print("uuid: " + str(data[0]['uuid']))
-	print(f"Total train size : {len(X_train)}")
-	print(f"Total test size : {len(X_test)}")
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.5, random_state=42)
+    print("uuid: " + str(data[0]['uuid']))
+    print(f"Total train size : {len(X_train)}")
+    print(f"Total test size : {len(X_test)}")
 
-	regr = MultiOutputRegressor(Ridge(random_state=123)).fit(X_train.values, y_train.values)
+    # regr = MultiOutputRegressor(Ridge(random_state=123)).fit(X_train.values, y_train.values)
+    regr = MultiOutputRegressor(Ridge(random_state=123)).fit(X.values, y.values)
 
-	preds = pred_to_df(regr.predict(X_test.values).round(), y_test.columns)
+    preds = pred_to_df(regr.predict(X_test.values).round(), y_test.columns)
+    print(f"Accuracy is : {accuracy_score(preds, y_test)*100}%")
+    print(preds)
 
-	print(f"Accuracy is : {accuracy_score(preds, y_test)*100}%")
+    path = 'models/' + str(data[0]['uuid']) + '.pickle'
+    file = open(path, 'wb')
+    pickle.dump(regr, file)
 
-	path = 'models/' + str(data[0]['uuid']) + '.pickle'
-	file = open(path, 'wb')
-	pickle.dump(regr, file)
-
-	
+    
 def loadModel(uuid):
-	path = 'models/' + str(uuid) + '.pickle'
-	file = open(path, 'rb')
-	regr = pickle.load(file)
-	return regr
+    path = 'models/' + str(uuid) + '.pickle'
+    file = open(path, 'rb')
+    regr = pickle.load(file)
+    return regr
 
 def modelPredict(model, x):
-	return model.predict(x).round()
-	
+    return model.predict(x).round()
+
+trainModel(1)
+    
+# preprocess_dataset('data/file/', output_dir)
+
+# storeData(1)
+# getData()
+# trainModel(1)
 # storeData(1)
 # trainModel(1)
-	
-# trainModel(0)
-
-# path = 'models/30f7d786367be12c4146cd175819bdec2bb1a57b01d9953f3405fa654bb06e9f.pickle'
-# file = open(path, 'rb')
-# model = pickle.load(file)
-
-# X, y = get_X_y(getData())
-
-# y_hat = modelPredict(model, (X[:][:1]))
-
-# print(y_hat)
