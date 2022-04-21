@@ -1,11 +1,8 @@
-from email.mime import application
-from re import A
+from attr import Attribute
 from sklearn.linear_model import SGDRegressor
 from sklearn.svm import SVR
-import yaml
 from random import randint
 
-from zmq import device
 from sim_helpers import *
 from processDataset import *
 from datetime import datetime
@@ -29,6 +26,8 @@ class Device:
         self.total_dates = 0
         self.avg_start_RAM = 0
         self.page_faults = 0
+        self.clock_hand = 0
+        self.clock_refs = {}
 
     def randomReplacement(self, app):
         while self.RAM < categories_to_RAM[app_to_category[app]]:
@@ -38,6 +37,21 @@ class Device:
                 rand_idx = 0
             evicted = self.applications.pop(rand_idx)
             self.RAM += categories_to_RAM[app_to_category[evicted]]
+
+    def Clock(self, app):
+        while self.RAM < categories_to_RAM[app_to_category[app]]:
+            if self.clock_hand >= len(self.applications):
+                self.clock_hand = 0
+            # Find unref app
+            while self.clock_refs[self.applications[self.clock_hand]]:
+                self.clock_refs[self.applications[self.clock_hand]] = False
+                self.clock_hand += 1
+                if self.clock_hand >= len(self.applications):
+                    self.clock_hand = 0
+            
+            evicted = self.applications.pop(self.clock_hand)
+            self.RAM += categories_to_RAM[app_to_category[evicted]]
+
 
     
     def LRU(self, app):
@@ -82,14 +96,21 @@ class Device:
                 if app not in app_to_category:
                     app_to_category[app] = 'OTHER'
                 # self.LRU(app)
-                self.randomReplacement(app)
+                # self.randomReplacement(app)
+                self.Clock(app)
                 self.RAM -= categories_to_RAM[app_to_category[app]]
                 self.down_time += max(categories_to_RAM[app_to_category[app]] / float(90), 5.0)
+
+                self.applications.insert(self.clock_hand, app)
             else:
-                self.applications.remove(app)
+                pass
+                # self.applications.remove(app)
+
+            self.clock_refs[app] = True
 
             # Add app to the top of the stack
-            self.applications.append(app)
+            # self.applications.append(app)
+
 
 
 # First, create the sim with the input, desired RAM and the starting location and time.
@@ -158,8 +179,10 @@ class Sim:
                     if app not in self.device.applications and y_hat[i] == 1:
                         # print('prefetching something')
                         # self.device.LRU(app)
-                        self.device.randomReplacement(app)
-                        self.device.applications.append(app)
+                        # self.device.randomReplacement(app)
+                        self.device.Clock(app)
+                        self.device.applications.insert(self.device.clock_hand, app)
+                        # self.device.applications.append(app)
                         self.device.RAM -= categories_to_RAM[app_to_category[app]]
 
                         self.prefetched += 1                            

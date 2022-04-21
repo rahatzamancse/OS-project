@@ -74,5 +74,5 @@ def loadModel(uuid):
 def modelPredict(model, x):
     return model.predict(x).round()
 
-storeData(1)
-trainModel()
+# storeData(1)
+# trainModel()
