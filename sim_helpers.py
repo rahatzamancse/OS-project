@@ -40,10 +40,11 @@ def get_secs_from_time(t):
 def prep_input(input, template):
     x = [0 for i in range(len(template))]
     for k in input:
-        if k not in template:
-            continue
-        if k == 'timestamp' or k == 'batteryLevel':
-            x[template.index(k)] = input[k]
+        if k == 'timestamp':
+            mins = get_secs_from_time(input[k])
+            x[template.index(k)] = mins / (24 * 60)
+        elif k == 'batteryLevel':
+            x[template.index(k)] = input[k] / 100.0
         elif k == 'batteryStatus':
             if input[k] == 'charging':
                 x[template.index(k)] = 0
@@ -53,6 +54,8 @@ def prep_input(input, template):
                 x[template.index(k)] = 2
         elif k == 'apps':
             for app in input[k]:
+                if app not in template:
+                    continue
                 x[template.index(app)] = 1
     return x
     

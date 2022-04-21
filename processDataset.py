@@ -121,9 +121,12 @@ def get_app_freq(data):
     return app_freq
 
 
+def get_secs_from_time(t):
+    t = str(datetime.utcfromtimestamp(t).time())[:5]
+    secs = int(t[:2]) * 60 + int(t[3:])
+    return secs
 
-
-def get_X_y(data, top_n_apps=50):
+def get_X_y(data, top_n_apps=100, training=False):
     app_freq = get_app_freq(data)
     top_50_freq_apps = [k for k,v in sorted(app_freq.items(), key=lambda item: item[1], reverse=True)][:top_n_apps]
     processedData = []
@@ -148,23 +151,74 @@ def get_X_y(data, top_n_apps=50):
     battery_status_encoder = preprocessing.LabelEncoder()
     X_tmp['batteryStatus'] = battery_status_encoder.fit_transform(X_tmp['batteryStatus'])
 
-    battery_level_scaler = preprocessing.MinMaxScaler()
-    X_tmp['batteryLevel'] = battery_level_scaler.fit_transform(X_tmp['batteryLevel'].values.reshape(-1, 1))
+    # battery_level_scaler = preprocessing.MinMaxScaler()
+    # X_tmp['batteryLevel'] = battery_level_scaler.fit_transform(X_tmp['batteryLevel'].values.reshape(-1, 1))
+
+    X_tmp['batteryLevel'] = X_tmp['batteryLevel'] / 100.0
     
     X_tmp = X_tmp.sort_values(by=['timestamp']).reset_index().drop(['index'], axis=1)
     
-    def get_secs_from_time(t):
-        t = str(datetime.utcfromtimestamp(t).time())[:5]
-        secs = int(t[:2]) * 60 + int(t[3:])
-        return secs
+    
+    maxMinutes = 24 * 60
     X_tmp['timestamp'] = X_tmp['timestamp'].apply(get_secs_from_time)
     
     timestamp_scaler = preprocessing.MinMaxScaler()
-    X_tmp['timestamp'] = timestamp_scaler.fit_transform(X_tmp['timestamp'].values.reshape(-1, 1))
+    # X_tmp['timestamp'] = timestamp_scaler.fit_transform(X_tmp['timestamp'].values.reshape(-1, 1))
+    X_tmp['timestamp'] = X_tmp['timestamp'] / maxMinutes
     
     y = X_tmp.iloc[:, 3:].copy()
     y = y.drop(y.index[0]).reset_index().drop(['index'], axis=1)
     
     X_tmp = X_tmp.drop(X_tmp.index[-1]).reset_index().drop(['index'], axis=1)
+
+    if not training:
+        return X_tmp, y
+
+    prev = None
+    to_drop = []
+    for i in tqdm(range(y.shape[0])):
+        ele = list(y.iloc[i])
+        if prev == None:
+            prev = list(ele)
+        else:
+            if prev == list(ele):
+                to_drop.append(i)
+
+    dataframe_drop = []
+    x_df_drop = []
+    for i in to_drop:
+        dataframe_drop.append(y.index[i])
+        x_df_drop.append(X_tmp.index[i-1])
+
+    nodup_y = y.drop(dataframe_drop).reset_index().drop(['index'], axis=1)
+    nodup_x = X_tmp.drop(x_df_drop).reset_index().drop(['index'], axis=1)
+
+    y_new = nodup_y - nodup_x.iloc[:,3:]
+
+    y_new_nozero = y_new.loc[~(y_new==0).all(axis=1)]
+    X_nozero = nodup_x.loc[~(y_new==0).all(axis=1)]
+
+    zeros = y_new_nozero[y_new_nozero < 0].sum(axis=0)
+
+    # toRemove = []
+    # for i in range(zeros.shape[0]):
+    #     if zeros[i] == 0:
+    #         if zeros.axes[0][i] not in toRemove:
+    #             toRemove.append(zeros.axes[0][i])
+    #     else:
+    #         if zeros.axes[0][i] in toRemove:
+    #             toRemove.remove(zeros.axes[0][i])
+
+    # zeros = y_new_nozero[y_new_nozero > 0].sum(axis=0)
+    # for i in range(zeros.shape[0]):
+    #     if zeros[i] == 0:
+    #         if zeros.axes[0][i] not in toRemove:
+    #             toRemove.append(zeros.axes[0][i])
+    #     else:
+    #         if zeros.axes[0][i] in toRemove:
+    #             toRemove.remove(zeros.axes[0][i])
     
-    return X_tmp, y
+    # X_nozero = X_nozero.drop(toRemove, axis=1)
+    # y_new_nozero = y_new_nozero.drop(toRemove, axis=1)
+    
+    return X_nozero, y_new_nozero

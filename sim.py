@@ -1,4 +1,9 @@
 from email.mime import application
+from re import A
+from sklearn.linear_model import SGDRegressor
+from sklearn.svm import SVR
+import yaml
+from random import randint
 
 from zmq import device
 from sim_helpers import *
@@ -24,8 +29,18 @@ class Device:
         self.total_dates = 0
         self.avg_start_RAM = 0
         self.page_faults = 0
+
+    def randomReplacement(self, app):
+        while self.RAM < categories_to_RAM[app_to_category[app]]:
+            if len(self.applications) > 1:
+                rand_idx = randint(0, len(self.applications) - 1)
+            else:
+                rand_idx = 0
+            evicted = self.applications.pop(rand_idx)
+            self.RAM += categories_to_RAM[app_to_category[evicted]]
+
     
-    def evictApps(self, app):
+    def LRU(self, app):
         while self.RAM < categories_to_RAM[app_to_category[app]]:
             top_RAM_use = 0
             top_idx = 0
@@ -66,7 +81,8 @@ class Device:
                 # If there is NOT enough RAM for this application
                 if app not in app_to_category:
                     app_to_category[app] = 'OTHER'
-                self.evictApps(app)
+                # self.LRU(app)
+                self.randomReplacement(app)
                 self.RAM -= categories_to_RAM[app_to_category[app]]
                 self.down_time += max(categories_to_RAM[app_to_category[app]] / float(90), 5.0)
             else:
@@ -81,6 +97,7 @@ class Device:
 class Sim:
     def __init__(self, input, RAM):
         self.model = loadModel(input[0]['uuid'])
+        # self.model = MultiOutputRegressor(SGDRegressor(random_state=123))
         self.input = sorted(input, key=lambda x: int(x['timestamp']))
         location = None
         time = self.input[0]['timestamp']
@@ -91,46 +108,74 @@ class Sim:
         self.wrong_prefetch = 0
         self.wrong_evict = 0
         self.num_right = 0
+        self.redundant = 0
         self.hits = 0
         self.miss = 0
 
     def runInput(self):
         prevEvent = None
         iter = 0
+        hasFit = False
+        online = False
+        predicting = True
+        X_temp = []
+        y_temp = []
         for event in tqdm(self.input):
+            # eventTime = get_secs_from_time(event['timestamp'])
+            # deviceTime = get_secs_from_time(self.device.time)
             iter += 1
-            if iter > 3000:
-                break
-            eventTime = get_secs_from_time(event['timestamp'])
-            deviceTime = get_secs_from_time(self.device.time)
+
+            if iter % 500 == 0 and online:
+                if hasFit:
+                    self.model.partial_fit(X_temp, y_temp)
+                    X_temp = []
+                    y_temp = []
+                else:
+                    self.model.fit(X_temp, y_temp)
+                    hasFit = True
+                    X_temp = []
+                    y_temp = []
             
-            predicting = False
-            if prevEvent != None and predicting:
-                # TODO: NEED to change this to the current state, not next state
+            if prevEvent != None and predicting and (hasFit or not online):
                 x = prep_input(prevEvent, template)
-                prev_x = prep_input(event, template)
                 y_hat = modelPredict(self.model, [x])[0]
 
+                # for i in range(0, len(y_hat)):
+                #     app = template[i + 3]
+                #     if app not in app_to_category:
+                #         app_to_category[app] = 'OTHER'
+
+                #     if app in self.device.applications and y_hat[i] == 0:
+                #         self.device.applications.remove(app)
+                #         self.device.RAM += categories_to_RAM[app_to_category[app]]
+                #         self.pre_evict += 1
                 for i in range(0, len(y_hat)):
                     app = template[i + 3]
                     if app not in app_to_category:
                         app_to_category[app] = 'OTHER'
-                    if app in self.device.applications and y_hat[i] == 0:
-                        self.device.applications.remove(app)
-                        self.device.RAM += categories_to_RAM[app_to_category[app]]
-                        self.pre_evict += 1
-                for i in range(0, len(y_hat)):
-                    app = template[i + 3]
+                    if y_hat[i] == 1 and app in self.device.applications:
+                        self.redundant += 1
                     if app not in self.device.applications and y_hat[i] == 1:
-                        self.device.evictApps(app)
-                        if self.device.RAM >= categories_to_RAM[app_to_category[app]]:
-                            # TODO: Try append instead of insert
-                            self.device.applications.append(app)
-                            self.device.RAM -= categories_to_RAM[app_to_category[app]]
+                        # print('prefetching something')
+                        # self.device.LRU(app)
+                        self.device.randomReplacement(app)
+                        self.device.applications.append(app)
+                        self.device.RAM -= categories_to_RAM[app_to_category[app]]
 
-                            self.prefetched += 1                            
-                        else:
-                            self.failed_prefetch += 1
+                        self.prefetched += 1                            
+
+            if online and prevEvent != None:
+                prev_template = prep_input(prevEvent, template)
+                cur_template = prep_input(event, template)
+
+                y_train = [cur_template[i] - prev_template[i] for i in range(3, len(cur_template))]
+                # y_train = cur_template[3:]
+
+                # self.model.partial_fit([prev_template], [y_train])
+
+                X_temp.append(prev_template)
+                y_temp.append(y_train)
+
 
             prevEvent = event
             self.device.processEvent(event)
@@ -151,7 +196,7 @@ print('Fetching Applications ...')
 app_list = get_app_list(users)
 
 app_freq = get_app_freq(users[0])
-top_freq_apps = [k for k,v in sorted(app_freq.items(), key=lambda item: item[1], reverse=True)][:100]
+top_freq_apps = [k for k,v in sorted(app_freq.items(), key=lambda item: item[1], reverse=True)][:50]
 
 template = ['batteryLevel', 'batteryStatus', 'timestamp']
 for app in top_freq_apps:
@@ -164,7 +209,7 @@ app_to_category, categories_to_RAM = get_categories()
 for u in users:
     print(u[0]['uuid']) 
     init_time = u[0]['timestamp']
-    simu = Sim(u, 4096)
+    simu = Sim(u, 2048)
     simu.runInput()
     print('total downtime: ' + str(simu.device.down_time))
     average_downtime = simu.device.down_time / float(simu.device.total_dates)
@@ -177,6 +222,4 @@ for u in users:
     print('total failed prefetches: ' + str(simu.failed_prefetch))
     print('total page faults: ' + str(simu.device.page_faults))
 
-    print(simu.wrong_prefetch)
-    print(simu.wrong_evict)
-    print(simu.num_right)
+    print(simu.redundant)

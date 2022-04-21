@@ -8,6 +8,7 @@ import plotly.express as px
 import numpy as np
 from sklearn import preprocessing
 from sklearn.multioutput import MultiOutputRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import accuracy_score
 import shutil
@@ -42,19 +43,22 @@ def trainModel():
     
     data = getData()
 
-    X, y = get_X_y(data, 100)
+    X, y = get_X_y(data, 50, True)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.5, random_state=42)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.01, shuffle=True, random_state=42)
     print("uuid: " + str(data[0]['uuid']))
     print(f"Total train size : {len(X_train)}")
     print(f"Total test size : {len(X_test)}")
 
     # regr = MultiOutputRegressor(Ridge(random_state=123)).fit(X_train.values, y_train.values)
-    regr = MultiOutputRegressor(Ridge(random_state=123)).fit(X.values, y.values)
+    regr = MultiOutputRegressor(Ridge(random_state=123, alpha=.5)).fit(X.values, y.values)
+    # regr = MLPRegressor(alpha=.0005)
+    # regr.fit(X.values, y.values)
 
-    preds = pred_to_df(regr.predict(X_test.values).round(), y_test.columns)
-    print(f"Accuracy is : {accuracy_score(preds, y_test)*100}%")
-    print(preds)
+    # preds = pred_to_df(regr.predict(X_test.values).round(), y_test.columns)
+    # print(f"Accuracy is : {accuracy_score(preds, y_test)*100}%")
+    # print(preds)
 
     path = 'models/' + str(data[0]['uuid']) + '.pickle'
     file = open(path, 'wb')
@@ -70,12 +74,5 @@ def loadModel(uuid):
 def modelPredict(model, x):
     return model.predict(x).round()
 
-trainModel(1)
-    
-# preprocess_dataset('data/file/', output_dir)
-
-# storeData(1)
-# getData()
-# trainModel(1)
-# storeData(1)
-# trainModel(1)
+storeData(1)
+trainModel()
