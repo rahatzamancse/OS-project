@@ -24,8 +24,9 @@ class Device:
         self.down_time = 0.0
         self.current_date = None
         self.total_dates = 0
-        self.avg_start_RAM = 0
         self.page_faults = 0
+        self.hits = 0
+        self.misses = 0
         self.clock_hand = 0
         self.clock_refs = {}
 
@@ -82,32 +83,34 @@ class Device:
                 if categories_to_RAM[app_to_category[app]] > self.RAM_reset:
                     self.applications.pop(self.applications.index(app))
                     self.RAM += categories_to_RAM[app_to_category[app]]
-            self.avg_start_RAM += self.RAM
-            # self.applications = []
-            # self.RAM = self.total_RAM
             self.total_dates += 1
 
         # print('current RAM: ' + str(self.RAM))
         # Go through foreground apps and add them to RAM
         for app in event['apps']:
             if app not in self.applications:
-                self.page_faults += 1
+                self.misses += 1
                 # If there is NOT enough RAM for this application
                 if app not in app_to_category:
                     app_to_category[app] = 'OTHER'
+
+                # Uncomment the algo to use, and comment out the rest.
                 # self.LRU(app)
                 # self.randomReplacement(app)
                 self.Clock(app)
+
                 self.RAM -= categories_to_RAM[app_to_category[app]]
                 self.down_time += max(categories_to_RAM[app_to_category[app]] / float(90), 5.0)
 
                 self.applications.insert(self.clock_hand, app)
             else:
-                pass
+                self.hits += 1
+                # If using LRU, uncomment this next line.
                 # self.applications.remove(app)
 
             self.clock_refs[app] = True
 
+            # If using LRU, uncomment this next line.
             # Add app to the top of the stack
             # self.applications.append(app)
 
@@ -124,10 +127,7 @@ class Sim:
         time = self.input[0]['timestamp']
         self.device = Device(RAM, location, time)
         self.prefetched = 0
-        self.failed_prefetch = 0
-        self.pre_evict = 0
         self.wrong_prefetch = 0
-        self.wrong_evict = 0
         self.num_right = 0
         self.redundant = 0
         self.hits = 0
@@ -136,14 +136,18 @@ class Sim:
     def runInput(self):
         prevEvent = None
         iter = 0
+
+        # Used with online learning only
         hasFit = False
+
+        # Change to TRUE for online learning. Must also change to SGD Regressor in __init__ for sim
         online = False
+
+        # Change to TRUE if using the model for prediction, else False
         predicting = True
         X_temp = []
         y_temp = []
         for event in tqdm(self.input):
-            # eventTime = get_secs_from_time(event['timestamp'])
-            # deviceTime = get_secs_from_time(self.device.time)
             iter += 1
 
             if iter % 500 == 0 and online:
@@ -161,15 +165,6 @@ class Sim:
                 x = prep_input(prevEvent, template)
                 y_hat = modelPredict(self.model, [x])[0]
 
-                # for i in range(0, len(y_hat)):
-                #     app = template[i + 3]
-                #     if app not in app_to_category:
-                #         app_to_category[app] = 'OTHER'
-
-                #     if app in self.device.applications and y_hat[i] == 0:
-                #         self.device.applications.remove(app)
-                #         self.device.RAM += categories_to_RAM[app_to_category[app]]
-                #         self.pre_evict += 1
                 for i in range(0, len(y_hat)):
                     app = template[i + 3]
                     if app not in app_to_category:
@@ -177,14 +172,19 @@ class Sim:
                     if y_hat[i] == 1 and app in self.device.applications:
                         self.redundant += 1
                     if app not in self.device.applications and y_hat[i] == 1:
-                        # print('prefetching something')
+                        # Change based on the baseline algo being used.
+
                         # self.device.LRU(app)
                         # self.device.randomReplacement(app)
                         self.device.Clock(app)
-                        self.device.applications.insert(self.device.clock_hand, app)
-                        # self.device.applications.append(app)
-                        self.device.RAM -= categories_to_RAM[app_to_category[app]]
 
+                        # Use following line only for CLOCK algorithm:
+                        self.device.applications.insert(self.device.clock_hand, app)
+
+                        # Use this line for all others
+                        # self.device.applications.append(app)
+
+                        self.device.RAM -= categories_to_RAM[app_to_category[app]]
                         self.prefetched += 1                            
 
             if online and prevEvent != None:
@@ -192,9 +192,6 @@ class Sim:
                 cur_template = prep_input(event, template)
 
                 y_train = [cur_template[i] - prev_template[i] for i in range(3, len(cur_template))]
-                # y_train = cur_template[3:]
-
-                # self.model.partial_fit([prev_template], [y_train])
 
                 X_temp.append(prev_template)
                 y_temp.append(y_train)
@@ -205,13 +202,7 @@ class Sim:
 
 
 print('Loading Dataset ...')
-# user_summary = get_user_summary(output_dir)
-# sorted_users_by_event = {k:v for k,v in sorted(user_summary.items(), key=lambda item: item[1]['event_count'], reverse=True)}
 
-# Only get one user for now
-# users = []
-# for i in range(1):
-#     users.append(get_user_data(list(sorted_users_by_event.keys())[i], output_dir))
 
 users = [getData()]
 
@@ -236,13 +227,10 @@ for u in users:
     simu.runInput()
     print('total downtime: ' + str(simu.device.down_time))
     average_downtime = simu.device.down_time / float(simu.device.total_dates)
-    avg_RAM = simu.device.avg_start_RAM / float(simu.device.total_dates)
-    # print('average downtime: ' + str(average_downtime))
-    # print()
-    print(average_downtime)
+    print('average downtime: ' + str(average_downtime))
     print('total prefetched: ' + str(simu.prefetched))
     print('total pre-evicted: ' + str(simu.pre_evict))
-    print('total failed prefetches: ' + str(simu.failed_prefetch))
-    print('total page faults: ' + str(simu.device.page_faults))
+    print('total hits: ' + str(simu.device.hits))
+    print('total misses: ' + str(simu.device.misses))
 
     print(simu.redundant)
